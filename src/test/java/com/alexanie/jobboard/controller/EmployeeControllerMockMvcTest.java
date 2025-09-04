@@ -7,13 +7,18 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mock;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.CommandLineRunner;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.context.annotation.Bean;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.util.Arrays;
+import java.util.List;
 
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
@@ -29,6 +34,15 @@ class EmployeeControllerMockMvcTest {
 
     @Autowired
     private ObjectMapper objectMapper; // For JSON conversion
+
+
+    @TestConfiguration
+    static class NoOpRunnerConfig {
+        @Bean
+        CommandLineRunner runner() {
+            return args -> {}; // no-op
+        }
+    }
 
     @Test
     @DisplayName("GET /api/employees returns list of employees")
@@ -51,14 +65,15 @@ class EmployeeControllerMockMvcTest {
     @DisplayName("POST /api/employees creates a new employee")
     void addEmployee_createsNewEmployee() throws Exception {
         // Given
-        Employee newEmployee = new Employee(null, "Charlie", "DevOps", 100000.0, Arrays.asList("Docker"));
-        Employee savedEmployee = new Employee(3L, "Charlie", "DevOps", 100000.0, Arrays.asList("Docker"));
-        when(service.addEmployee(newEmployee)).thenReturn(savedEmployee);
+        Employee savedEmployee = new Employee(3L, "Charlie", "DevOps", 100000.0, List.of("Docker"));
+
+        // 👇 fix: use argument matcher so Mockito doesn't care about object identity
+        when(service.addEmployee(any(Employee.class))).thenReturn(savedEmployee);
 
         // When + Then
         mockMvc.perform(post("/api/employees")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(newEmployee)))
+                        .content(objectMapper.writeValueAsString(savedEmployee)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(3))
                 .andExpect(jsonPath("$.name").value("Charlie"))
